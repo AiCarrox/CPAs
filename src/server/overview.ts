@@ -572,24 +572,70 @@ const fetchGeminiQuotaWithClient = async (
   }
   const payload = parseJson<Record<string, unknown>>(quotaResult.body ?? quotaResult.bodyText) ?? {};
   const buckets = Array.isArray(payload.buckets) ? payload.buckets : [];
-  const items: OverviewQuotaItem[] = [];
+
+  // Collect raw buckets first, then group by model family
+  const rawBuckets: Array<{ modelId: string; label: string; fraction: number | null; remainingAmount: number | null; resetAt: string | null }> = [];
   for (const bucket of buckets) {
     if (!isRecord(bucket)) continue;
     const modelId = normalizeString(bucket.modelId ?? bucket.model_id);
     if (!modelId) continue;
-    const fraction = normalizeFraction(bucket.remainingFraction ?? bucket.remaining_fraction);
-    const remainingAmount = normalizeNumber(bucket.remainingAmount ?? bucket.remaining_amount);
+    const label = modelId.replace(/_vertex$/, '');
+    rawBuckets.push({
+      modelId,
+      label,
+      fraction: normalizeFraction(bucket.remainingFraction ?? bucket.remaining_fraction),
+      remainingAmount: normalizeNumber(bucket.remainingAmount ?? bucket.remaining_amount),
+      resetAt: normalizeDateValue(bucket.resetTime ?? bucket.reset_time),
+    });
+  }
+
+  // Group into Pro / Flash / Flash Lite (order matters: flash-lite before flash)
+  const geminiGroups = [
+    { id: 'gemini-pro', label: 'Pro', test: (l: string) => l.includes('pro') },
+    { id: 'gemini-flash-lite', label: 'Flash Lite', test: (l: string) => l.includes('flash-lite') },
+    { id: 'gemini-flash', label: 'Flash', test: (l: string) => l.includes('flash') },
+  ];
+  const items: OverviewQuotaItem[] = [];
+  const claimed = new Set<string>();
+  for (const group of geminiGroups) {
+    let minFraction: number | null = null;
+    let resetAt: string | null = null;
+    const matched: string[] = [];
+    for (const b of rawBuckets) {
+      if (claimed.has(b.modelId)) continue;
+      if (!group.test(b.label)) continue;
+      claimed.add(b.modelId);
+      matched.push(b.label);
+      if (b.fraction !== null) {
+        minFraction = minFraction === null ? b.fraction : Math.min(minFraction, b.fraction);
+      }
+      if (b.resetAt && (!resetAt || Date.parse(b.resetAt) < Date.parse(resetAt))) {
+        resetAt = b.resetAt;
+      }
+    }
+    if (matched.length > 0) {
+      items.push(
+        buildQuotaItem({
+          id: group.id,
+          label: group.label,
+          remainingPercent: minFraction === null ? null : minFraction * 100,
+          resetAt,
+          meta: { models: matched },
+        })
+      );
+    }
+  }
+  // Any unclaimed models go as individual items
+  for (const b of rawBuckets) {
+    if (claimed.has(b.modelId)) continue;
     items.push(
       buildQuotaItem({
-        id: modelId,
-        label: modelId.replace(/_vertex$/, ''),
-        remainingPercent: fraction === null ? null : fraction * 100,
-        remainingAmount,
-        unit: remainingAmount !== null ? 'quota' : null,
-        resetAt: normalizeDateValue(bucket.resetTime ?? bucket.reset_time),
-        meta: {
-          token_type: normalizeString(bucket.tokenType ?? bucket.token_type),
-        },
+        id: b.modelId,
+        label: b.label,
+        remainingPercent: b.fraction === null ? null : b.fraction * 100,
+        remainingAmount: b.remainingAmount,
+        unit: b.remainingAmount !== null ? 'quota' : null,
+        resetAt: b.resetAt,
       })
     );
   }

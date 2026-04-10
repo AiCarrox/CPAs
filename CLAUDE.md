@@ -29,11 +29,19 @@ No test framework is configured in this project.
 
 **Monorepo-style client/server split** sharing types via `src/shared/`.
 
-### `src/client/` — React SPA (Vite + React 19)
-- Single `App.tsx` component with two routing modes: `/admin` (login + full control) and `/` (public read-only snapshot)
-- All API calls go through a typed `api<T>()` helper with `credentials: 'include'`
-- No routing library — uses `window.location.pathname` to distinguish admin vs public
-- Styling is pure CSS in `index.css` with CSS custom properties (no CSS framework)
+### `src/client/` — React SPA (Vite + React 19 + React Router v7)
+
+按职责拆分为 pages / components / hooks / lib 四层：
+
+- **`main.tsx`** — 入口，挂载 BrowserRouter + AppRouter
+- **`router.tsx`** — 路由定义：`/` → PublicPage，`/admin` → AdminGuard（内聚认证逻辑）→ LoginPage 或 AdminPage
+- **`api.ts`** — 通用 `request<T>()` fetch 封装 + 12 个具名 API 函数（checkSession, login, logout, fetchSites, saveSite, deleteSite, fetchOverview, refreshOverview, fetchPublicOverview, fetchAlertConfig, saveAlertConfig, testAlertWebhook）
+- **`index.css`** — 全局样式，CSS 变量配色 + 模态弹窗 + 表单网格
+- **`lib/format.ts`** — fmtPercent, fmtDateTime, fmtNumber, quotaColor
+- **`lib/constants.ts`** — providerAccent 配色表、下拉选项静态数据
+- **`hooks/`** — useAuth（会话管理）、useOverview（概览数据+自动刷新定时器）、useSites（站点CRUD）、useAlert（告警配置）
+- **`components/`** — StatusPill, QuotaBar, AccountCard, SitePanel（站点折叠面板+色块概览）, SiteManager（站点CRUD弹窗）, AlertPanel（告警配置弹窗）
+- **`pages/`** — PublicPage（公开快照，与管理面板一致布局）、LoginPage（密码登录）、AdminPage（管理面板，组合所有 hooks 和组件）
 
 ### `src/server/` — Express 5 API (Node, ESM)
 - **`index.ts`** — Express app with auth middleware, all API routes (`/api/session`, `/api/login`, `/api/logout`, `/api/overview`, `/api/refresh`, `/api/public-overview`). In production, also serves the built SPA as static files with SPA fallback.
@@ -47,7 +55,7 @@ No test framework is configured in this project.
 - `ProviderId` union type: `'claude' | 'codex' | 'gemini-cli' | 'kimi' | 'antigravity'`
 
 ### Key data flow
-1. Client logs in with CPA URL + management key → server validates by calling `listAuthFiles`
+1. Client logs in with admin password → server sets HMAC-signed cookie
 2. Authenticated `/api/overview` call → `buildOverview()` fetches all auth files + usage in parallel, then fetches per-account quota concurrently
 3. Each provider has a dedicated quota fetcher (`fetchClaudeQuotaWithClient`, `fetchCodexQuotaWithClient`, etc.) that calls the provider's API through CPA's `apiCall` proxy (the `$TOKEN$` placeholder is replaced server-side by CPA)
 4. Results are cached in-memory with configurable TTL; `/api/refresh` with `{ scope }` forces cache bypass
@@ -55,8 +63,8 @@ No test framework is configured in this project.
 
 ## Deployment
 
-- `deploy/cpa-quota.service` — systemd unit, reads `.env.production`, runs `node dist/server/server/index.js`
-- `deploy/nginx.quota.bbroot.com.conf` — reverse proxy to `:4180`
+- `deploy/cpas.service` — systemd unit, reads `.env.production`, runs `node dist/server/server/index.js`
+- `deploy/cpas.6553501.xyz.conf` — Nginx reverse proxy to `:4179`
 - Server TypeScript compiles with `tsconfig.server.json` (NodeNext modules), output to `dist/server/`
 - Client builds via Vite to `dist/client/`
 
