@@ -16,8 +16,10 @@ SESSION_SECRET=dev-secret npm run dev
 # Build (client to dist/client, server to dist/server)
 npm run build
 
-# Production
-SESSION_SECRET=prod-secret NODE_ENV=production npm start
+# Docker production (app container only; host nginx handles 80/443)
+cp .env.production.example .env.production
+docker compose build
+docker compose up -d
 
 # Type checking (both client and server)
 npm run type-check
@@ -48,7 +50,7 @@ No test framework is configured in this project.
 - **`session.ts`** — In-memory session store (Map) with HMAC-signed cookies. Sessions hold CPA credentials. Two TTL tiers: 1 day (default) or 30 days (remember me).
 - **`cpaClient.ts`** — Axios client wrapping CPA's `/v0/management` REST API. Provides `listAuthFiles`, `downloadAuthFile`, `getUsage`, `apiCall`. The `apiCall` method is used for per-provider quota fetching (Claude, Codex, Gemini CLI, Kimi, Antigravity).
 - **`overview.ts`** — Core data pipeline (~985 lines). Orchestrates: fetch auth files → fetch usage → per-account quota fetching (via provider-specific API calls through CPA's `apiCall` proxy) → grouping by provider → computing aggregates. Contains TTL-based in-memory caches for usage and quota data.
-- **`config.ts`** — Reads env vars: `PORT` (4179), `SESSION_SECRET`, `USAGE_TTL_SECONDS` (30), `QUOTA_TTL_SECONDS` (300), `COOKIE_NAME`, `publicDir`.
+- **`config.ts`** — Reads env vars: `HOST` (`127.0.0.1` default), `PORT` (4179), `SESSION_SECRET`, `USAGE_TTL_SECONDS` (30), `QUOTA_TTL_SECONDS` (300), `COOKIE_NAME`, `publicDir`.
 
 ### `src/shared/types.ts` — Shared TypeScript interfaces
 - `OverviewResponse`, `OverviewProvider`, `OverviewAccount`, `OverviewQuota`, `OverviewUsage`, etc.
@@ -63,8 +65,9 @@ No test framework is configured in this project.
 
 ## Deployment
 
-- `deploy/cpas.service` — systemd unit, reads `.env.production`, runs `node dist/server/server/index.js`
-- `deploy/cpas.6553501.xyz.conf` — Nginx reverse proxy to `:4179`
+- Production uses `docker-compose.yml` to run the app container on `127.0.0.1:4179`
+- Host Nginx keeps handling `80/443`, TLS certificates, and reverse proxy for `cpas.6553501.xyz`
+- Persistent runtime data is stored in host `data/` and mounted into the container as `/app/.data`
 - Server TypeScript compiles with `tsconfig.server.json` (NodeNext modules), output to `dist/server/`
 - Client builds via Vite to `dist/client/`
 

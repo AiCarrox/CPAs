@@ -16,6 +16,7 @@ const optionalNumber = (name: string, fallback: number): number => {
 };
 
 export const appConfig = {
+  host: process.env.HOST?.trim() || '127.0.0.1',
   port: optionalNumber('PORT', 4179),
   sessionSecret: requireValue('SESSION_SECRET', 'change-me-before-production'),
   usageTtlMs: optionalNumber('USAGE_TTL_SECONDS', 30) * 1000,

@@ -240,8 +240,8 @@ if (fs.existsSync(clientIndexFile)) {
   });
 }
 
-app.listen(appConfig.port, () => {
-  console.log(`CPAs server listening on http://localhost:${appConfig.port}`);
+app.listen(appConfig.port, appConfig.host, () => {
+  console.log(`CPAs server listening on http://${appConfig.host}:${appConfig.port}`);
   startAlertScheduler(
     async (): Promise<SiteConnection[]> => loadSiteConnections(),
     (overview) => {
