@@ -117,6 +117,7 @@ export const updateAlertConfig = (patch: Partial<AlertConfig>): AlertConfig => {
 };
 
 type AlertItem = {
+  site: { name: string };
   provider: { name: string };
   account: { label: string | null; name: string };
   item: { label: string; remaining_percent: number };
@@ -147,6 +148,7 @@ const collectAlerts = (overview: OverviewResponse): AlertItem[] => {
           if (alertedWindows.get(dedupeKey) === windowKey) break;
           alertedWindows.set(dedupeKey, windowKey);
           alerts.push({
+            site: { name: account.site_name },
             provider: { name: provider.name },
             account: { label: account.label, name: account.name },
             item: { label: item.label, remaining_percent: item.remaining_percent },
@@ -284,7 +286,7 @@ const tick = async (): Promise<void> => {
     console.log(`[alert] ${alerts.length} quota alert(s) triggered, sending via ${config.channel}…`);
     const lines = alerts.map((a) => {
       const targetLabel = a.rule.target === 'quota_5h' ? '5小时额度' : '周额度';
-      return `[${a.provider.name}] ${a.account.label || a.account.name} — ${a.item.label}: 剩余 ${Math.round(a.item.remaining_percent)}%（${targetLabel} / 阈值 ${a.rule.threshold}%）`;
+      return `「${a.site.name}」[${a.provider.name}] ${a.account.label || a.account.name} — ${a.item.label}: 剩余 ${Math.round(a.item.remaining_percent)}%（${targetLabel} / 阈值 ${a.rule.threshold}%）`;
     });
     await dispatchAlert(`配额告警 (${alerts.length} 条)\n\n${lines.join('\n')}`);
   }

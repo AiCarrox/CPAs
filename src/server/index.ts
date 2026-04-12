@@ -13,8 +13,12 @@ import type {
   SessionResponse,
   SiteConnection,
   SiteListResponse,
+  WarmupConfigResponse,
+  WarmupEntry,
+  WarmupTestResponse,
 } from '../shared/types.js';
 import { getAlertConfig, sendTestWebhook, startAlertScheduler, updateAlertConfig } from './alert.js';
+import { getWarmupConfig, updateWarmupConfig, startWarmupScheduler, testWarmupEntry } from './warmup.js';
 import { buildMultiSiteOverview } from './multiSiteOverview.js';
 import { deleteSite, loadSiteConnections, saveSite } from './credentials.js';
 
@@ -233,6 +237,33 @@ app.post('/api/alert/test', authRequired, async (_req, res) => {
   res.json(payload);
 });
 
+app.get('/api/warmup', authRequired, (_req, res) => {
+  const payload: WarmupConfigResponse = { config: getWarmupConfig() };
+  res.json(payload);
+});
+
+app.post('/api/warmup', authRequired, (req, res) => {
+  const entries = req.body?.entries;
+  if (!Array.isArray(entries)) {
+    res.status(400).json({ error: 'Missing entries array' });
+    return;
+  }
+  const updated = updateWarmupConfig(entries as WarmupEntry[]);
+  const payload: WarmupConfigResponse = { config: updated };
+  res.json(payload);
+});
+
+app.post('/api/warmup/test', authRequired, async (req, res) => {
+  const entry = req.body as WarmupEntry | undefined;
+  if (!entry?.api?.id) {
+    res.status(400).json({ error: 'Missing warmup entry' });
+    return;
+  }
+  const result = await testWarmupEntry(entry);
+  const payload: WarmupTestResponse = result;
+  res.json(payload);
+});
+
 if (fs.existsSync(clientIndexFile)) {
   app.use(express.static(appConfig.publicDir));
   app.get('/{*path}', (_req, res) => {
@@ -248,4 +279,5 @@ app.listen(appConfig.port, appConfig.host, () => {
       publicOverview = overview;
     },
   );
+  startWarmupScheduler();
 });

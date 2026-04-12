@@ -5,6 +5,9 @@ import type {
   OverviewResponse,
   SessionResponse,
   SiteListResponse,
+  WarmupConfigResponse,
+  WarmupEntry,
+  WarmupTestResponse,
 } from '../shared/types';
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
@@ -48,3 +51,12 @@ export const saveAlertConfig = (patch: Partial<AlertConfig>) =>
 
 export const testAlertWebhook = () =>
   request<AlertTestResponse>('/api/alert/test', { method: 'POST' });
+
+export const fetchWarmupConfig = () =>
+  request<WarmupConfigResponse>('/api/warmup');
+
+export const saveWarmupConfig = (entries: WarmupEntry[]) =>
+  request<WarmupConfigResponse>('/api/warmup', { method: 'POST', body: JSON.stringify({ entries }) });
+
+export const testWarmupEntry = (entry: WarmupEntry) =>
+  request<WarmupTestResponse>('/api/warmup/test', { method: 'POST', body: JSON.stringify(entry) });

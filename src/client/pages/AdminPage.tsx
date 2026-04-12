@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useOverview } from '../hooks/useOverview';
 import { useSites } from '../hooks/useSites';
 import { useAlert } from '../hooks/useAlert';
+import { useWarmup } from '../hooks/useWarmup';
 import { fmtNumber, fmtDateTime } from '../lib/format';
 import { SiteManager } from '../components/SiteManager';
 import { AlertPanel } from '../components/AlertPanel';
+import { WarmupPanel } from '../components/WarmupPanel';
 import { SitePanel } from '../components/SitePanel';
 
 export function AdminPage() {
   const { sites, reload: reloadSites } = useSites();
   const { config: alertConfig, loadConfig: loadAlertConfig, save: saveAlert, test: testAlert } = useAlert();
+  const { config: warmupConfig, loadConfig: loadWarmupConfig, save: saveWarmup, test: testWarmup } = useWarmup();
   const refreshMs = alertConfig.refresh_interval_seconds * 1000 || 60_000;
   const { overview, error, refreshing, load: loadOverview } = useOverview('admin', refreshMs);
 
@@ -21,7 +24,7 @@ export function AdminPage() {
   };
 
   useEffect(() => {
-    void Promise.all([reloadSites(), loadOverview(), loadAlertConfig()]);
+    void Promise.all([reloadSites(), loadOverview(), loadAlertConfig(), loadWarmupConfig()]);
   }, []);
 
   const reloadAdmin = async () => {
@@ -105,6 +108,9 @@ export function AdminPage() {
           </section>
         )}
       </div>
+
+      {/* Warmup */}
+      <WarmupPanel config={warmupConfig} onSave={saveWarmup} onTest={testWarmup} />
 
       {/* Sites → Providers → Accounts */}
       <div style={{ marginTop: 16 }}>

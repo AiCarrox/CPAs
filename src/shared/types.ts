@@ -182,3 +182,50 @@ export interface SiteConnection {
 export interface SiteListResponse {
   sites: SiteConnection[];
 }
+
+/* ───── Warmup (API preheat) ───── */
+
+export interface WarmupApiConfig {
+  id: string;
+  remark: string;
+  apikey: string;
+  apiurl: string;
+  model: string;
+  enabled: boolean;
+}
+
+export interface WarmupSchedule {
+  hour: number;                      // 0-23, Beijing time
+  minute: number;                    // 0-59
+  random_spread_minutes: number;     // ±N minutes random spread
+}
+
+export interface WarmupEntry {
+  api: WarmupApiConfig;
+  schedule: WarmupSchedule;
+  count: number;                     // number of warmup calls per trigger, default 1
+  enabled: boolean;
+}
+
+/** Persisted runtime state per entry (stored alongside config) */
+export interface WarmupRuntimeState {
+  planned_at: string | null;         // ISO string of planned execution time (BJ)
+  last_run_bj_date: string | null;   // YYYY-MM-DD in Beijing time
+  last_run_at: string | null;        // ISO string
+  last_status: 'success' | 'error' | null;
+  last_error: string | null;
+}
+
+export interface WarmupConfig {
+  entries: WarmupEntry[];
+  states: Record<string, WarmupRuntimeState>;  // keyed by entry api.id
+}
+
+export interface WarmupConfigResponse {
+  config: WarmupConfig;
+}
+
+export interface WarmupTestResponse {
+  ok: boolean;
+  error?: string;
+}
